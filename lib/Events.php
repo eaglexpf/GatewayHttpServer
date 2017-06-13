@@ -98,7 +98,7 @@ class Events{
             array_pop($array);
             $array[count($array)-1] = ucfirst($array[count($array)-1]);
             $controller = implode("\\",$array);
-            $file = __DIR__."/../../../".implode("/",$array).".php";
+            $file = __DIR__."/../../../../".implode("/",$array).".php";
             //文件不存在
             if (!is_file($file)) {
                 /**
@@ -108,7 +108,7 @@ class Events{
                 $action = "index";
                 $array[count($array)-1] = ucfirst($array[count($array)-1]);
                 $controller = implode("\\",$array);
-                $file = __DIR__."/../../../".implode("/",$array).".php";
+                $file = __DIR__."/../../../../".implode("/",$array).".php";
                 if (!is_file($file)) {
                     throw new \Exception("Class:$controller Not Found", 404);
                 }
