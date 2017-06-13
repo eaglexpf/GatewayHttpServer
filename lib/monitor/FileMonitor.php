@@ -25,11 +25,11 @@ class FileMonitor{
         $worker->onWorkerStart = function(){
             //配置文件不存在
             if (!is_file(self::$config_file)) {
-                $userConfig = ["FileMonitor"=>[__DIR__."/../../../../"]];
+                $userConfig = ["FileMonitor"=>[__DIR__."/../../../../../"]];
             }else {
                 $userConfig = require_once(self::$config_file);
             }
-            $dir_data = isset($userConfig["FileMonitor"])?$userConfig["FileMonitor"]:[__DIR__."/../../../../"];
+            $dir_data = isset($userConfig["FileMonitor"])?$userConfig["FileMonitor"]:[__DIR__."/../../../../../"];
             // chek mtime of files per second
             Timer::add(1, ['GatewayHttpServer\lib\monitor\FileMonitor', 'check_files_change'],[$dir_data]);
         };
