@@ -15,11 +15,11 @@ class autoload
         // 相对路径
         $class_path = str_replace('\\', DIRECTORY_SEPARATOR ,$name);
         // 先尝试在当前目录寻找文件
-        $class_file = __DIR__ . DIRECTORY_SEPARATOR . $class_path.'.php';
+        $class_file = __DIR__ . '/../' . $class_path.'.php';
         // 文件不存在，则在根目录寻找
         if(empty($class_file) || !is_file($class_file))
         {
-            $class_file = __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR. "$class_path.php";
+            $class_file = __DIR__.'/../../../../'. "$class_path.php";
         }
 
         // 找到文件
