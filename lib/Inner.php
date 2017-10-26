@@ -17,7 +17,7 @@ class Inner
     public static function onWorkerStart($worker){
         self::$inner_to_ip = $worker->inner_to_ip;
         self::$inner_to_port = $worker->inner_to_port;
-        self::$event_code = require_once __DIR__.'/../config/event_code.php';
+        self::$event_code = $worker->event_code;
     }
 
     public static function onConnect($connection_id){

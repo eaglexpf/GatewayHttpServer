@@ -23,7 +23,7 @@ class Business extends Worker
     //与注册中心的连接
     protected $register_con = null;
     //事件属性
-    protected $event_code = [];
+    public $event_code = [];
     //业务唯一标识
     protected $UID = '';
     //默认心跳时间
@@ -38,6 +38,8 @@ class Business extends Worker
 
     public $inner_to_ip = '127.0.0.1';
     public $inner_to_port = 80;
+    //api服务配置文件目录
+    public $api_config_file = '';
 
     public function run(){
         $this->onWorkerStart = [$this,'onWorkerStart'];
@@ -54,6 +56,11 @@ class Business extends Worker
         $this->registerAddress();
         if (is_callable($this->eventHandler.'::onWorkerStart')){
             call_user_func($this->eventHandler.'::onWorkerStart',$worker);
+        }
+    }
+    public function onWorkerStop($worker){
+        if (is_callable($this->eventHandler.'::onWorkerStop')){
+            call_user_func($this->eventHandler.'::onWorkerStop',$worker);
         }
     }
     //注册服务
