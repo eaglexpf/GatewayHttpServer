@@ -45,7 +45,6 @@ class Business extends Worker
         $this->onWorkerStart = [$this,'onWorkerStart'];
         parent::run();
     }
-
     public function onWorkerStart($worker){
         $this->event_code = require_once __DIR__.'/config/event_code.php';
         $this->UID = strtoupper(md5(uniqid(mt_rand(), true)));
@@ -145,14 +144,23 @@ class Business extends Worker
             return false;
         }
         $this->waitAddress[$address] = 0;
-        $gateway_con = new AsyncTcpConnection("Text://{$address}");
+        //为通讯协议类设置别名；可以让workerman使用
+        if (!class_exists('\Protocols\GatewayProtocol')){
+            class_alias('GatewayHttpServer\Protocols\GatewayProtocol','Protocols\GatewayProtocol');
+        }
+        $gateway_con = new AsyncTcpConnection("GatewayProtocol://{$address}");
         $gateway_con->maxSendBufferSize = $this->maxBufferSize;
-        $data = json_encode([
+//        $data = json_encode([
+//            'event' => $this->event_code['businessConnectToGateway'],
+//            'secret_key' => $this->secretKey,
+//            'business_uid' => $this->UID
+//        ]);
+//        $data = pack('N',strlen($data)).$data;
+        $data = [
             'event' => $this->event_code['businessConnectToGateway'],
             'secret_key' => $this->secretKey,
             'business_uid' => $this->UID
-        ]);
-        $data = pack('L',strlen($data)).$data;
+        ];
         $gateway_con->onConnect = function ($connection)use($data,$address){
             $connection->id = strtoupper(md5(uniqid(mt_rand(), true)));
             $connection->send($data);
@@ -172,15 +180,15 @@ class Business extends Worker
         };
         $gateway_con->connect();
     }
-    public function onGatewayMessage($connection,$buffer){
-        if (strlen($buffer)<4){
-            return false;
-        }
-        $length = unpack("L",substr($buffer,0,4));
-        $data = @json_decode(substr($buffer,4,$length[1]),true);
-        if (isset($data['length'])){
-            $data['data'] = substr($buffer,4+$length[1]);
-        }
+    public function onGatewayMessage($connection,$data){
+//        if (strlen($buffer)<4){
+//            return false;
+//        }
+//        $length = unpack("N",substr($buffer,0,4));
+//        $data = @json_decode(substr($buffer,4,$length[1]),true);var_dump($buffer,$data);
+//        if (isset($data['length'])){
+//            $data['data'] = substr($buffer,4+$length[1]);
+//        }
         if (!isset($data['event'])){
             echo 'no event';
             return false;
@@ -192,7 +200,7 @@ class Business extends Worker
                 }
                 break;
             case $this->event_code['clientMessage']:
-                $data['data'] = base64_decode($data['data']);
+//                $data['data'] = base64_decode($data['data']);
                 if (is_callable($this->eventHandler.'::onMessage')){
                     call_user_func($this->eventHandler.'::onMessage',$connection,$data);
                 }
@@ -202,6 +210,8 @@ class Business extends Worker
                     call_user_func($this->eventHandler.'::onClose',$data['client_id']);
                 }
                 break;
+            default:
+                var_dump($data);
         }
     }
     //与gateway的链接关闭时
@@ -244,12 +254,16 @@ class Business extends Worker
 //                'secret_key' => $this->secretKey,
 //                'business_uid' => $this->UID
 //            ]);
-//            $data = pack('L',strlen($data)).$data;
-            $data = json_encode([
+//            $data = pack('N',strlen($data)).$data;
+//            $data = json_encode([
+//                'event' => $this->event_code['ping'],
+//                'msg' => 'this is ping'
+//            ]);
+//            $data = pack('N',strlen($data)).$data;
+            $data = [
                 'event' => $this->event_code['ping'],
                 'msg' => 'this is ping'
-            ]);
-            $data = pack('L',strlen($data)).$data;
+            ];
             $this->connection_data[$connection->id]['ping_time_id'] =  Timer::add($this->ping_time,function ()use($connection,$data){
                 $connection->send($data);
             });

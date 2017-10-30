@@ -21,44 +21,33 @@ class Controller
         self::$connection = $connection;
         self::$event_code = Events::$event_code;
     }
-    public static function send($buffer,$bool = true){
+    public static function send($buffer,$bool = false){
         $response = Http::encode($buffer,self::$connection);
         if ($bool){
             $event = self::$event_code['businessSendToClient'];
         }else{
             $event = self::$event_code['businessSendToClient'];
         }
-        if (strlen($response)>65000){
-            $data = json_encode([
-                'event' => $event,
-                'client_id' => self::$message['client_id'],
-                'msg_id' => self::$message['msg_id'],
-                'length' => strlen($response)
-            ]);
-            $data = pack('L',strlen($data)).$data.$response;
-        }else{
-            $data = json_encode([
-                'event' => $event,
-                'client_id' => self::$message['client_id'],
-                'msg_id' => self::$message['msg_id'],
-                'data' => base64_encode($response)
-            ]);
-            $data = pack('L',strlen($data)).$data;
-        }
+        $data = [
+            'event' => $event,
+            'client_id' => self::$message['client_id'],
+            'msg_id' => self::$message['msg_id'],
+            'data' => $response
+        ];
 
         return self::$connection->send($data);
     }
-    public static function sendStatics($code=200,$buffer='',$bool=true){
+    public static function sendStatics($code=200,$buffer='',$bool=false){
         Http::header("HTTP/1.1 {$code} ".Events::$http_code[$code]);
         return self::send($buffer,$bool);
     }
-    public static function sendJson($data,$bool){
+    public static function sendJson($data,$bool=false){
         Http::header("Content-Type:application/json; charset=UTF-8");
         return self::send(json_encode($data,320),$bool);
     }
     public static function sendView($view,$param=[]){
-        $controller = explode("controllers",self::$message['data']["roc"]["controller"]);var_dump($controller);
-        $file = __DIR__."/../../../../".Events::$config['application']."/views/".str_replace("\\","/",strtolower($controller[0]))."/$view.php";var_dump($file);
+        $controller = explode("controllers",self::$message['data']["roc"]["controller"]);
+        $file = __DIR__."/../../../../".Events::$config['application']."/views/".str_replace("\\","/",strtolower($controller[0]))."/$view.php";
         if (!is_file($file)){
             return self::sendStatics(404,'<html><head><title>404 File not found</title></head><body><center><h3>404 Not Found</h3></center></body></html>',false);
         }

@@ -42,14 +42,20 @@ class Inner
         self::$async[$message['client_id']]->send($message['data']);
         self::$async[$message['client_id']]->onMessage = function ($async,$http_buffer)use($connection,$message){
 
-            $buffer = base64_encode($http_buffer);
-            $data = json_encode([
+//            $buffer = base64_encode($http_buffer);
+//            $data = json_encode([
+//                'event' => self::$event_code['businessSendToClient'],
+//                'client_id' => $message['client_id'],
+//                'msg_id' => $message['msg_id'],
+//                'length' => strlen($buffer)
+//            ]);
+//            $data = pack('N',strlen($data)).$data.$buffer;
+            $data = [
                 'event' => self::$event_code['businessSendToClient'],
                 'client_id' => $message['client_id'],
                 'msg_id' => $message['msg_id'],
-                'length' => strlen($buffer)
-            ]);
-            $data = pack('L',strlen($data)).$data.$buffer;
+                'data' => $http_buffer
+            ];
             $connection->send($data);
         };
 

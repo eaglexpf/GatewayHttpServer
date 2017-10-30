@@ -15,7 +15,7 @@ use Workerman\Worker;
 class Logger extends Worker
 {
     const MAX_LOG_BUFFER_SIZE = 1024000;
-    const WRITE_LOG_TIME = 60;
+    const WRITE_LOG_TIME = 5;
     protected $logBuffer = '';
     public $logDir = 'log/';
     public $logFromData = null;
@@ -42,7 +42,7 @@ class Logger extends Worker
             if (!in_array($data['log_ip'],$this->logFromData)){
                 return false;
             }
-        }var_dump('aaa');
+        }
 
         $this->logBuffer .= $data['msg_id']."\t".$data['log_ip']."\t".date('Y-m-d H:i:s',$data['log_time'])."\t{$data['run_time']}\t{$data['url']}\t{$data['status']}\t{$data['request']}\t{$data['response']}\n";
         if (strlen($this->logBuffer)>=self::MAX_LOG_BUFFER_SIZE){
@@ -56,7 +56,7 @@ class Logger extends Worker
             return;
         }
         // 写入磁盘
-        file_put_contents(__DIR__.'/../../../'.$this->logDir.date('Y-m-d').'.txt', utf8_encode($this->logBuffer), FILE_APPEND | LOCK_EX);
+        file_put_contents(__DIR__.'/../../../'.$this->logDir.date('Y-m-d').'.txt', $this->logBuffer, FILE_APPEND | LOCK_EX);
         $this->logBuffer = '';
     }
 

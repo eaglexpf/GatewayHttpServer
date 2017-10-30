@@ -82,7 +82,11 @@ class Gateway extends Worker
         }
         //设置内部监听端口
         $this->lanPort = $this->startPort+$this->id;
-        $innerTcpBusiness = new Worker("Text://0.0.0.0:{$this->lanPort}");
+        //为通讯协议类设置别名；可以让workerman使用
+        if (!class_exists('\Protocols\GatewayProtocol')){
+            class_alias('GatewayHttpServer\Protocols\GatewayProtocol','Protocols\GatewayProtocol');
+        }
+        $innerTcpBusiness = new Worker("GatewayProtocol://0.0.0.0:{$this->lanPort}");
         $innerTcpBusiness->onConnect = [$this,'onListenConnect'];
         $innerTcpBusiness->onMessage = [$this,'onListenMessage'];
         $innerTcpBusiness->onClose = [$this,'onListenClose'];
@@ -137,42 +141,48 @@ class Gateway extends Worker
     //向业务服务发送消息
     public function sendToBusiness($event,$connection,$buffer=''){
         if ($this->businessConnections){
-            $buffer = base64_encode($buffer);
             $business_connection = $this->routerBind($connection);
             $msg_id = strtoupper(md5(uniqid(mt_rand(), true)));
             //如果数据存在；设置定时器；时间超时后记录日志
             if (!empty($this->log_address)){
                 if (!empty($buffer)){
-                    $http_data = Http::decode(base64_decode($buffer),$connection);
+                    $http_data = Http::decode($buffer,$connection);
                     $connection->time_out[$msg_id] = Timer::add($this->time_out,function ()use($msg_id,$http_data){
                         $find_start = strpos($http_data['server']['REQUEST_URI'],'?');
                         $url = substr($http_data['server']['REQUEST_URI'],0,$find_start===false?strlen($http_data['server']['REQUEST_URI']):$find_start);
-                        $log = LoggerClient::encode($msg_id,time(),$this->time_out,503,$url,json_encode($http_data),'请求超时');
+                        $log = LoggerClient::encode($msg_id,time(),$this->time_out,503,$url,json_encode($http_data,320),'请求超时');
                         LoggerClient::sendData($this->log_address,$log);
                     },null,false);
                     $connection->msg_data[$msg_id] = $http_data;
                 }
 
             }
-            if (strlen($buffer)>1024){
-                $data = json_encode([
-                    'event' => $event,
-                    'client_id' => $connection->id,
-                    'msg_id' => $msg_id,
-                    'length' => strlen($buffer)
-                ],320);
-                $data = pack('L',strlen($data)).$data.$buffer;
-            }else{
-                $data = json_encode([
-                    'event' => $event,
-                    'client_id' => $connection->id,
-                    'msg_id' => $msg_id,
-                    'data' => $buffer
-                ],320);
-                $data = pack('L',strlen($data)).$data;
-            }
+//            if (strlen($buffer)>1024){
+//                $data = json_encode([
+//                    'event' => $event,
+//                    'client_id' => $connection->id,
+//                    'msg_id' => $msg_id,
+//                    'length' => strlen($buffer)
+//                ],320);
+//                $data = pack('N',strlen($data)).$data.$buffer;
+//            }else{
+//                $data = json_encode([
+//                    'event' => $event,
+//                    'client_id' => $connection->id,
+//                    'msg_id' => $msg_id,
+//                    'data' => $buffer
+//                ],320);
+//                $data = pack('N',strlen($data)).$data;
+//            }
+            $data = [
+                'event' => $event,
+                'client_id' => $connection->id,
+                'msg_id' => $msg_id,
+                'data' => $buffer
+            ];
             $connection->msgTime[$msg_id] = microtime(true);
-            if (false === $business_connection->send($data)){
+            $send_result = $business_connection->send($data);
+            if (false === $send_result){
                 $msg = "SendBufferToWorker fail. May be the send buffer are overflow. See http://wiki.workerman.net/Error2 for detail";
                 self::log($msg);
                 return false;
@@ -188,13 +198,13 @@ class Gateway extends Worker
         $connection->maxSendBufferSize = $this->maxBufferSize;
     }
     //业务服务发送消息
-    public function onListenMessage($connection,$buffer){
-        $length = unpack('L',substr($buffer,0,4));
-        $json = substr($buffer,4,$length[1]);
-        $data = @json_decode($json,true);
+    public function onListenMessage($connection,$data){
+//        $length = unpack('N',substr($buffer,0,4));
+//        $json = substr($buffer,4,$length[1]);
+//        $data = @json_decode($json,true);
         //数据是否包含event事件属性
         if (!isset($data['event'])){
-            $error = "Bad request for Gegister service. If you are a client please connect Gateway. Request info(IP:".$connection->getRemoteIp().", Request Buffer:$buffer)\n";
+            $error = "no event\n";
             echo $error;
             return $connection->close($error);
         }
@@ -239,12 +249,12 @@ class Gateway extends Worker
                     self::log("Gateway: must have client_id or msg_id");
                     return $connection->close();
                 }
-                if (isset($data['length'])){
-                    $message = substr($buffer,4+$length[1]);
-                }else{
+//                if (isset($data['length'])){
+//                    $message = substr($buffer,4+$length[1]);
+//                }else{
                     $message = $data['data'];
-                }
-                $message = base64_decode($message);
+//                }
+//                $message = base64_decode($message);
                 if (!empty($this->log_address)){
                     if (isset($this->clientConnections[$data['client_id']]->time_out[$data['msg_id']])){
                         Timer::del($this->clientConnections[$data['client_id']]->time_out[$data['msg_id']]);
@@ -258,7 +268,8 @@ class Gateway extends Worker
                     $msg_time = $this->clientConnections[$data['client_id']]->msgTime[$data['msg_id']];
                     $time = round(microtime(true)-$msg_time,5);
                     $message = $http_header."\r\nRun-Time: {$time}\r\n\r\n".$http_body;
-                    $log = LoggerClient::encode($data['msg_id'],time(),$time,$decode_buffer[1],$url,json_encode($request_data),$http_body);
+                    $http_body = json_encode($http_body,320);
+                    $log = LoggerClient::encode($data['msg_id'],time(),$time,$decode_buffer[1],$url,json_encode($request_data,320),$http_body);
                     LoggerClient::sendData($this->log_address,$log);
                 }
 

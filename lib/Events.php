@@ -8,6 +8,7 @@
 namespace GatewayHttpServer\lib;
 
 
+use Workerman\Lib\Timer;
 use Workerman\Protocols\Http;
 
 class Events
@@ -17,6 +18,7 @@ class Events
     private static $api_config_file;
     private static $http_type;
     public static $config = [];
+    public static $processTimeout = 3;
     //检测配置文件
     protected static function checkConfig(){
         $config = [
@@ -32,7 +34,7 @@ class Events
         self::$config = $config;
     }
     protected static function getFile($connection,$buffer,$type){
-        $file = __DIR__.'/../../../../'.self::$config['statics'].$buffer['data']['server']['REQUEST_URI'];var_dump($file);
+        $file = __DIR__.'/../../../../'.self::$config['statics'].$buffer['data']['server']['REQUEST_URI'];
         $baseController = new Controller($connection,$buffer);
         if (!is_file($file)){
             return $baseController->sendStatics(404,'<html><head><title>404 File not found</title></head><body><center><h3>404 Not Found</h3></center></body></html>');
@@ -49,6 +51,21 @@ class Events
         }
         $baseController->sendStatics(200,file_get_contents($file));
     }
+//    public static function timeoutHandler($signal){
+//        switch ($signal){
+//            case SIGALRM:var_dump('time out');
+//                // 超时异常
+//                $e         = new \Exception("process_timeout", 506);
+//                $trace_str = $e->getTraceAsString();
+//                // 去掉第一行timeoutHandler的调用栈
+//                $trace_str = $e->getMessage() . ":\n" . substr($trace_str, strpos($trace_str, "\n") + 1) . "\n";
+//                // 开发者没有设置超时处理函数，或者超时处理函数返回空则执行退出
+////                if (!$this->processTimeoutHandler || !call_user_func($this->processTimeoutHandler, $trace_str, $e)) {
+////                    Worker::stopAll();
+////                }
+//                break;
+//        }
+//    }
 
     public static function onWorkerStart($worker){
         self::$event_code = $worker->event_code;
@@ -56,9 +73,16 @@ class Events
         self::$http_type = require_once __DIR__.'/../config/http_type.php';
         self::$http_code = require_once __DIR__.'/../config/http_code.php';
         self::checkConfig();
+
+//        if (function_exists('pcntl_signal')) {
+//            // 业务超时信号处理
+//            pcntl_signal(SIGALRM, array('Events', 'timeoutHandler'), false);
+//        } else {
+//            self::$processTimeout = 0;
+//        }
     }
     public static function onConnect($connect_id){
-        var_dump('this is connect;connect_id is:'.$connect_id);
+//        var_dump('this is connect;connect_id is:'.$connect_id);
     }
     public static function onMessage($connection,$buffer){
         try{
@@ -129,7 +153,7 @@ class Events
         }
     }
     public static function onClose($connect_id){
-        var_dump('this is close;connect_id is:'.$connect_id);
+//        var_dump('this is close;connect_id is:'.$connect_id);
     }
 
 }
