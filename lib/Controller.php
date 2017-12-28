@@ -72,7 +72,7 @@ class Controller
             return self::send($content,false);
         }
     }
-    public static function get($key=false,$power=false,$value=null){
+    public static function get($key=false,$power=true,$value=null){
         if (!$key){
             return self::$message['data']['get'];
         }
@@ -87,6 +87,84 @@ class Controller
         }else{
             if (isset(self::$message['data']['get'][$key])){
                 return self::$message['data']['get'][$key];
+            }else{
+                return $value;
+            }
+        }
+    }
+    public static function post($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$message['data']['post'];
+        }
+        if ($power){
+            if (isset(self::$message['data']['post'][$key])&&!empty(self::$message['data']['post'][$key])){
+                return self::$message['data']['post'][$key];
+            }else if (!is_null($value)){
+                return $value;
+            }else{
+                throw new \Exception("POST:缺少参数$key",400);
+            }
+        }else{
+            if (isset(self::$message['data']['post'][$key])){
+                return self::$message['data']['post'][$key];
+            }else{
+                return $value;
+            }
+        }
+    }
+    public static function request($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$message;
+        }
+        if (isset(self::$message['data']['get'][$key])){
+            if ($power){
+                if (!empty(self::$message['data']['get'][$key])){
+                    return self::$message['data']['get'][$key];
+                }else{
+                    throw new \Exception("缺少参数$key",400);
+                }
+            }
+            return self::$message['data']['get'][$key];
+        }elseif (isset(self::$message['data']['post'][$key])){
+            if ($power){
+                if (!empty(self::$message['data']['post'][$key])){
+                    return self::$message['data']['post'][$key];
+                }else{
+                    throw new \Exception("缺少参数$key",400);
+                }
+            }
+            return self::$message['data']['post'][$key];
+        }elseif($power){
+            if (is_null($value)){
+                throw new \Exception("缺少参数$key",400);
+            }
+            return $value;
+        }else{
+            return $value;
+        }
+    }
+    public static function header($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$message['data']['server'];
+        }
+        if (isset(self::$message['data']['server']['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])){
+            throw new \Exception("正在验证HEADER是否符合标准",200);
+        }
+        if ($power){
+            if (isset(self::$message['data']['server'][strtoupper($key)])&&!empty(self::$message['data']['server'][strtoupper($key)])){
+                return self::$message['data']['server'][strtoupper($key)];
+            }elseif(isset(self::$message['data']['server']['HTTP_'.strtoupper($key)])&&!empty(self::$message['data']['server']['HTTP_'.strtoupper($key)])){
+                return self::$message['data']['server']['HTTP_'.strtoupper($key)];
+            }else if (!is_null($value)){
+                return $value;
+            }else{
+                throw new \Exception("HEADER:缺少参数$key",400);
+            }
+        }else{
+            if (isset(self::$message['data']['server'][strtoupper($key)])){
+                return self::$message['data']['server'][strtoupper($key)];
+            }else if(isset(self::$message['data']['server']['HTTP_'.strtoupper($key)])){
+                return self::$message['data']['server']['HTTP_'.strtoupper($key)];
             }else{
                 return $value;
             }

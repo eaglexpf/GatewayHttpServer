@@ -142,14 +142,18 @@ class Events
             $model->$action();
         }catch (\Exception $e){
             $errorCode = $e->getCode()?$e->getCode():500;
+            if (!is_int($errorCode)){
+                $errorCode = 500;
+            }
             $baseController = new Controller($connection,$buffer);
-            Http::header('Content-Type:application/json; charset=UTF-8');
-            $baseController->sendStatics($errorCode,json_encode(['file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode(),'message'=>$e->getMessage()],320),false);
+            $baseController->sendJson(['ErrorCode'=>$errorCode,'Error'=>$e->getMessage(),'file'=>$e->getFile(),'line'=>$e->getLine()]);
         }catch (\Error $e){
             $errorCode = $e->getCode()?$e->getCode():500;
+            if (!is_int($errorCode)){
+                $errorCode = 500;
+            }
             $baseController = new Controller($connection,$buffer);
-            Http::header('Content-Type:application/json; charset=UTF-8');
-            $baseController->sendStatics($errorCode,json_encode(['file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode(),'message'=>$e->getMessage()],320),false);
+            $baseController->sendJson(['ErrorCode'=>$errorCode,'Error'=>$e->getMessage(),'file'=>$e->getFile(),'line'=>$e->getLine()]);
         }
     }
     public static function onClose($connect_id){

@@ -68,6 +68,9 @@ class LoggerClient
     }
 
     public static function sendData($address,$buffer){
+        if (!$buffer){
+            return false;
+        }
         $socket = stream_socket_client($address);
         if (!$socket){
             return false;

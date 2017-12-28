@@ -9,6 +9,7 @@ namespace GatewayHttpServer;
 
 
 use Workerman\Connection\AsyncTcpConnection;
+use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Worker;
 
@@ -56,6 +57,8 @@ class Business extends Worker
         if (is_callable($this->eventHandler.'::onWorkerStart')){
             call_user_func($this->eventHandler.'::onWorkerStart',$worker);
         }
+        TcpConnection::$defaultMaxSendBufferSize = $this->maxBufferSize;
+        TcpConnection::$maxPackageSize = $this->maxBufferSize;
     }
     public function onWorkerStop($worker){
         if (is_callable($this->eventHandler.'::onWorkerStop')){
@@ -145,11 +148,11 @@ class Business extends Worker
         }
         $this->waitAddress[$address] = 0;
         //为通讯协议类设置别名；可以让workerman使用
-        if (!class_exists('\Protocols\GatewayProtocol')){
-            class_alias('GatewayHttpServer\Protocols\GatewayProtocol','Protocols\GatewayProtocol');
+        if (!class_exists('\Protocols\BusinessProtocol')){
+            class_alias('GatewayHttpServer\Protocols\BusinessProtocol','Protocols\BusinessProtocol');
         }
-        $gateway_con = new AsyncTcpConnection("GatewayProtocol://{$address}");
-        $gateway_con->maxSendBufferSize = $this->maxBufferSize;
+        $gateway_con = new AsyncTcpConnection("BusinessProtocol://{$address}");
+//        $gateway_con->maxSendBufferSize = $this->maxBufferSize;
 //        $data = json_encode([
 //            'event' => $this->event_code['businessConnectToGateway'],
 //            'secret_key' => $this->secretKey,
