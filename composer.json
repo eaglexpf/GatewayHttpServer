@@ -2,6 +2,7 @@
     "name": "eaglexpf/gateway-http-server",
     "description": "workerman gateway http",
     "require": {
+        "workerman/workerman": "3.5.4"
     },
     "autoload": {
         "psr-4": {
