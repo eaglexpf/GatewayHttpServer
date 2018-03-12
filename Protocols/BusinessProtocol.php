@@ -27,6 +27,7 @@ class BusinessProtocol
         if (is_array($data)){
             $data['data'] = $buffer?$buffer:'';
         }
+//        var_dump($data);
         return $data;
     }
     public static function encode($data){

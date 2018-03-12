@@ -1,163 +1,278 @@
 <?php
+namespace GatewayHttpServer\lib;
+use Workerman\MySQL\Connection;
+use Workerman\Protocols\Http;
+use Workerman\Protocols\HttpCache;
+
 /**
  * User: Roc.xu
- * Date: 2017/10/25
- * Time: 11:50
+ * Date: 2018/3/2
+ * Time: 14:02
  */
-
-namespace GatewayHttpServer\lib;
-
-
-use Workerman\Lib\Timer;
-use Workerman\Protocols\Http;
-
 class Events
 {
     public static $event_code;
-    public static $http_code;
-    private static $api_config_file;
-    private static $http_type;
     public static $config = [];
-    public static $processTimeout = 3;
-    //检测配置文件
-    protected static function checkConfig(){
-        $config = [
-            'application' => 'backend',
-            'statics' => 'statics'
-        ];
-        if (is_file(self::$api_config_file)){
-            $file_config = require_once self::$api_config_file;
-            if (is_array($file_config)){
-                $config = array_merge($config,$file_config);
-            }
-        }
-        self::$config = $config;
-    }
-    protected static function getFile($connection,$buffer,$type){
-        $file = __DIR__.'/../../../../'.self::$config['statics'].$buffer['data']['server']['REQUEST_URI'];
-        $baseController = new Controller($connection,$buffer);
-        if (!is_file($file)){
-            return $baseController->sendStatics(404,'<html><head><title>404 File not found</title></head><body><center><h3>404 Not Found</h3></center></body></html>');
-        }
-        $bool = true;
-        foreach (self::$http_type as $k=>$v){
-            if ($k==$type){
-                Http::header("Content-Type: ".$v.';charset=utf-8');
-                $bool = false;
-            }
-        }
-        if ($bool){
-            Http::header("Content-Type: text/".$type.';charset=utf-8');
-        }
-        $baseController->sendStatics(200,file_get_contents($file));
-    }
-//    public static function timeoutHandler($signal){
-//        switch ($signal){
-//            case SIGALRM:var_dump('time out');
-//                // 超时异常
-//                $e         = new \Exception("process_timeout", 506);
-//                $trace_str = $e->getTraceAsString();
-//                // 去掉第一行timeoutHandler的调用栈
-//                $trace_str = $e->getMessage() . ":\n" . substr($trace_str, strpos($trace_str, "\n") + 1) . "\n";
-//                // 开发者没有设置超时处理函数，或者超时处理函数返回空则执行退出
-////                if (!$this->processTimeoutHandler || !call_user_func($this->processTimeoutHandler, $trace_str, $e)) {
-////                    Worker::stopAll();
-////                }
-//                break;
-//        }
-//    }
+
+    protected static $namespace;
+    protected static $dir = __DIR__.'/../../../../';
 
     public static function onWorkerStart($worker){
         self::$event_code = $worker->event_code;
-        self::$api_config_file = $worker->api_config_file;
-        self::$http_type = require_once __DIR__.'/../config/http_type.php';
-        self::$http_code = require_once __DIR__.'/../config/http_code.php';
-        self::checkConfig();
+        if ($worker->config_dir){
+            self::$config = require_once $worker->config_dir;
+        }
+        if (!isset(self::$config['backend'])){
+            self::$config['backend'] = 'backend';
+        }
+        if (!isset(self::$config['static'])){
+            self::$config['static'] = 'static';
+        }
+        self::$namespace = self::$config['backend'].'/controllers';
 
-//        if (function_exists('pcntl_signal')) {
-//            // 业务超时信号处理
-//            pcntl_signal(SIGALRM, array('Events', 'timeoutHandler'), false);
-//        } else {
-//            self::$processTimeout = 0;
-//        }
     }
-    public static function onConnect($connect_id){
-//        var_dump('this is connect;connect_id is:'.$connect_id);
+    public static function onConnect($connection){
+
     }
-    public static function onMessage($connection,$buffer){
-        try{
-            $buffer['data'] = Http::decode($buffer['data'],$connection);
-            //将请求地址切分为数组（数组为目录和文件）
-            $array = explode("/",explode('?',  self::$config['application']."/controllers".$buffer['data']['server']['REQUEST_URI'])[0]);
-            //判断请求地址是否有后缀；有后缀且后缀不是php的抓取静态文件返回
-            if(strstr($array[count($array)-1], '.')){
-                $file_data = explode('.',$array[count($array)-1]);
-                if ($file_data[1]!=='php'){
-                    self::getFile($connection,$buffer,$file_data[1]);
-                    return;
-                }
-                $array[count($array)-1] = $file_data[0];
+    public static function onMessage($connection,$data){
+        $controller = new Controller($connection,$data);
+        try {
+            $response = $controller->getResponse();
+            $parse_url = parse_url($response['server']['REQUEST_URI']);
+            $path = pathinfo($parse_url['path']);
+            if (isset($path['extension'])) {
+//                return $controller->send('静态资源');
+                return $controller->send(MyError::NotFound());
             }
-            //没有请求路径时设置默认首页index/index
-            if (empty($array[2])&&count($array)==3){
-                $array[2] = "index";
-                array_push($array, 'index');
-            }
-            //请求路径只有一个时；设置默认方法index
-            if (count($array)==3){
-                array_push($array, 'index');
-            }
-            /**
-             * 第一种可能；请求地址包含文件名称和方法名称
-             */
-            //请求地址的绝对路径（去掉方法名称）
-            $action = $array[count($array)-1];
-            array_pop($array);
-            $controller = implode("\\",$array);
-            $file = __DIR__."/../../../../".implode("/",$array).".php";
-            //文件不存在
-            if (!is_file($file)) {
-                /**
-                 * 第二种可能：请求地址只包含文件名称（自动添加index方法）
-                 */
-                array_push($array, $action);
-                $action = "index";
-                $controller = implode("\\",$array);
-                $file = __DIR__."/../../../../".implode("/",$array).".php";
+            if ($path['dirname'] !== '/') {
+                $model = self::$namespace . $path['dirname'];
+                $action = $path['filename'];
+                $file = self::$dir . $model . '.php';
                 if (!is_file($file)) {
-                    throw new \Exception("Class:$controller Not Found", 404);
+                    $model = self::$namespace . $path['dirname'] . '/' . $path['filename'];
+                    $action = 'index';
                 }
+            } elseif ($path['filename']) {
+                $model = self::$namespace . '/' . $path['filename'];
+                $action = 'index';
+            } else {
+                $model = self::$namespace . '/' . 'index';
+                $action = 'index';
             }
-            $controller_prefix_len = strlen(self::$config['application']."\\controllers\\");
-            $buffer['data']["roc"] = [
-                "controller" => substr($controller,$controller_prefix_len),
-                "action" => $action
-            ];
-            //初始化文件
-            $model = new $controller($connection,$buffer);
-            //方法不存在
-            if (!method_exists($model, $action)) {
-                throw new \Exception("Action:$action Not Found",404);
+            $file = self::$dir . $model . '.php';
+            if (!is_file($file)) {
+                return $controller->send(MyError::NotFound());
             }
-            $model->$action();
+            $model = '\\'.str_replace('/','\\',$model);
+            $new_model = new $model($connection, $data);
+            if (!method_exists($new_model, $action)) {
+                return $controller->send(MyError::NotFound());
+            }
+            $new_model->$action();
         }catch (\Exception $e){
-            $errorCode = $e->getCode()?$e->getCode():500;
-            if (!is_int($errorCode)){
-                $errorCode = 500;
-            }
-            $baseController = new Controller($connection,$buffer);
-            $baseController->sendJson(['ErrorCode'=>$errorCode,'Error'=>$e->getMessage(),'file'=>$e->getFile(),'line'=>$e->getLine()]);
+            $controller->send(MyError::ServerError($e->getCode(),$e->getMessage()));
         }catch (\Error $e){
-            $errorCode = $e->getCode()?$e->getCode():500;
-            if (!is_int($errorCode)){
-                $errorCode = 500;
+            $controller->send(MyError::ServerError($e->getCode(),$e->getMessage()));
+        }
+
+    }
+    public static function onClose($connection){
+
+    }
+    public static function onWorkerStop($worker){
+
+    }
+
+}
+class MyError{
+    public static function NotFound(){
+        Http::header("Content-Type:application/json; charset=UTF-8",true,404);
+        return json_encode([
+            'code' => 404,
+            'msg' => '404 not found'
+        ]);
+    }
+    public static function ServerError($code,$msg){
+        if (isset(HttpCache::$codes[$code])){
+            Http::header("Content-Type:application/json; charset=UTF-8",true,$code);
+        }else{
+            Http::header("Content-Type:application/json; charset=UTF-8",true,503);
+        }
+
+        return json_encode([
+            'code' => $code,
+            'msg' => $msg
+        ],320);
+    }
+}
+class Controller{
+    protected static $connection;
+    protected static $response;
+    protected static $gateway_response;
+    protected static $event_code;
+    public function __construct($connection,$data)
+    {
+        self::$connection = $connection;
+        self::$gateway_response = $data;
+        self::$response = Http::decode(empty($data['data'])?'':$data['data'],$connection);
+        self::$event_code = Events::$event_code;
+    }
+    public static function send($buffer,$bool = false){
+        $request = Http::encode($buffer,self::$connection);
+        if ($bool){
+            $event = self::$event_code['businessSendToClientClose'];
+        }else{
+            $event = self::$event_code['businessSendToClient'];
+        }
+        $data = [
+            'event' => $event,
+            'client_id' => self::$gateway_response['client_id'],
+            'msg_id' => self::$gateway_response['msg_id'],
+            'data' => $request
+        ];
+        return self::$connection->send($data);
+    }
+    public static function sendJson($data,$bool=false,$http_status=200){
+        Http::header("Content-Type:application/json; charset=UTF-8",true,$http_status);
+        return self::send(json_encode($data,320),$bool);
+    }
+    public static function sendBuffer($buffer='',$bool=false,$http_status=200){
+        Http::header("HTTP/1.1 {$http_status} ".HttpCache::$codes[$http_status]);
+        return self::send($buffer,$bool);
+    }
+    public static function get_gateway_response(){
+        return self::$gateway_response;
+    }
+    public static function getResponse(){
+        return self::$response;
+    }
+    public static function get($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$response['get'];
+        }
+        if ($power){
+            if (isset(self::$response['get'][$key])&&!empty(self::$response['get'][$key])){
+                return self::$response['get'][$key];
+            }else if (!is_null($value)){
+                return $value;
+            }else{
+                throw new \Exception("GET:缺少参数$key",400);
             }
-            $baseController = new Controller($connection,$buffer);
-            $baseController->sendJson(['ErrorCode'=>$errorCode,'Error'=>$e->getMessage(),'file'=>$e->getFile(),'line'=>$e->getLine()]);
+        }else{
+            if (isset(self::$response['get'][$key])){
+                return self::$response['get'][$key];
+            }else{
+                return $value;
+            }
         }
     }
-    public static function onClose($connect_id){
-//        var_dump('this is close;connect_id is:'.$connect_id);
+    public static function post($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$response['post'];
+        }
+        if ($power){
+            if (isset(self::$response['post'][$key])&&!empty(self::$response['post'][$key])){
+                return self::$response['post'][$key];
+            }else if (!is_null($value)){
+                return $value;
+            }else{
+                throw new \Exception("POST:缺少参数$key",400);
+            }
+        }else{
+            if (isset(self::$response['post'][$key])){
+                return self::$response['post'][$key];
+            }else{
+                return $value;
+            }
+        }
     }
+    public static function files(){
+        return self::$response['files'];
+    }
+    public static function request($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$response;
+        }
+        if (isset(self::$response['get'][$key])){
+            if ($power){
+                if (!empty(self::$response['get'][$key])){
+                    return self::$response['get'][$key];
+                }else{
+                    throw new \Exception("缺少参数$key",400);
+                }
+            }
+            return self::$response['get'][$key];
+        }elseif (isset(self::$response['post'][$key])){
+            if ($power){
+                if (!empty(self::$response['post'][$key])){
+                    return self::$response['post'][$key];
+                }else{
+                    throw new \Exception("缺少参数$key",400);
+                }
+            }
+            return self::$response['post'][$key];
+        }elseif($power){
+            if (is_null($value)){
+                throw new \Exception("缺少参数$key",400);
+            }
+            return $value;
+        }else{
+            return $value;
+        }
+    }
+    public static function header($key=false,$power=true,$value=null){
+        if (!$key){
+            return self::$response['server'];
+        }
+        if (isset(self::$response['server']['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])){
+            throw new \Exception("正在验证HEADER是否符合标准",200);
+        }
+        if ($power){
+            if (isset(self::$response['server'][strtoupper($key)])&&!empty(self::$message['server'][strtoupper($key)])){
+                return self::$response['server'][strtoupper($key)];
+            }elseif(isset(self::$response['server']['HTTP_'.strtoupper($key)])&&!empty(self::$message['server']['HTTP_'.strtoupper($key)])){
+                return self::$response['server']['HTTP_'.strtoupper($key)];
+            }else if (!is_null($value)){
+                return $value;
+            }else{
+                throw new \Exception("HEADER:缺少参数$key",400);
+            }
+        }else{
+            if (isset(self::$response['server'][strtoupper($key)])){
+                return self::$response['server'][strtoupper($key)];
+            }else if(isset(self::$response['server']['HTTP_'.strtoupper($key)])){
+                return self::$response['server']['HTTP_'.strtoupper($key)];
+            }else{
+                return $value;
+            }
+        }
+    }
+}
+class Db{
+    protected static $instance = [];
+    public static function instance($config_name){
+        if (!isset(Events::$config['db'][$config_name])) {
+            echo "$config_name not set\n";
+            throw new \Exception("$config_name not set\n");
+        }
 
+        if (empty(self::$instance[$config_name])) {
+            $config                       = Events::$config['db'][$config_name];
+            self::$instance[$config_name] = new Connection($config['host'], $config['port'],
+                $config['user'], $config['password'], $config['dbname']);
+        }
+        return self::$instance[$config_name];
+    }
+    public static function close($config_name){
+        if (isset(self::$instance[$config_name])) {
+            self::$instance[$config_name]->closeConnection();
+            unset(self::$instance[$config_name]);
+        }
+    }
+    public static function closeAll(){
+        foreach (self::$instance as $connection) {
+            $connection->closeConnection();
+        }
+        self::$instance = [];
+    }
 }

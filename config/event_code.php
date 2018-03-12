@@ -20,6 +20,7 @@ return [
 
 
     'registerBroadcastGatewayAddress' => 3003,
+    'registerBroadcastBusinessID' => 3304,
 
     'clientConnect' => 4001,
     'clientMessage' => 4002,
