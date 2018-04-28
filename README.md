@@ -2,7 +2,7 @@
 
 GatewayHttpServer是基于workerman框架实现的一个http 网关服务开发框架（借鉴了同样基于workerman的gatewayworker框架）
 
-基于workerman的高性能与易用性，GatewayHttpServer可轻松实现一个高性能且支持分布式部署的http API应用
+基于workerman的高性能与易用性，GatewayHttpServer可轻松实现一个高性能且支持分布式部署的http API应用及内网穿透服务
 
 ### 安装方式（通过composer安装workerman及workerman/mysql完毕）
     composer require workerman/workerman
